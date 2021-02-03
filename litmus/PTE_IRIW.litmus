@@ -1,0 +1,51 @@
+RISCV PTE_IRIW
+
+(* Unlike with RVWMO, implicit address-translation accesses permit IRIW *)
+
+{
+  *0x1000=pte32(ppn=2,d=0,a=0,g=0,u=1,x=0,w=0,r=0,v=1);
+}
+
+P0 {
+  li a0, 0x2040
+  li a1, pte32(ppn=3,d=1,a=1,g=0,u=1,x=0,w=1,r=1,v=1)
+  sw a1, 0(a0)
+}
+
+P1 {
+  li a0, 0x2044
+  li a1, pte32(ppn=4,d=1,a=1,g=0,u=1,x=0,w=1,r=1,v=1)
+  sw a1, 0(a0)
+}
+
+P2 {
+  li a1, sv32(asid=0, ppn=1)
+  csrw satp, a1
+
+  li a0, 0x10000
+  li a1, 2
+  sw a1, 0(a0)
+
+  fence w,w
+
+  li a0, 0x11000
+  li a1, 2
+  sw a1, 0(a0)
+}
+
+P3 {
+  li a1, sv32(asid=0, ppn=1)
+  csrw satp, a1
+
+  li a0, 0x11000
+  li a1, 3
+  sw a1, 0(a0)
+
+  fence w,w
+
+  li a0, 0x10000
+  li a1, 3
+  sw a1, 0(a0)
+}
+
+exists 2:sepc=0xa0 /\ 3:sepc=0xa0

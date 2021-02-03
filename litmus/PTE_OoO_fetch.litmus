@@ -1,0 +1,38 @@
+RISCV PTE_OoO_fetch
+
+(* Although the level 1 PTE is not visible until after the level 0
+   PTE has already been cleared out, it's still possible for this
+   execution to not fault, because the level 1 PTE can be prefetched
+   into the address-translation cache and still be present after
+   the original value in memory has disappeared. *)
+
+{}
+
+P0 {
+  li a0, 0x2040
+  li a1, pte32(ppn=3,d=1,a=1,g=0,u=1,x=0,w=1,r=1,v=1)
+  sw a1, 0(a0)
+  
+  fence w,w
+  
+  sw x0, 0(a0)
+  
+  fence w,w
+  
+  li a0, 0x1000
+  li a1, pte32(ppn=2,d=0,a=0,g=0,u=1,x=0,w=0,r=0,v=1)
+  sw a1, 0(a0)
+  
+  fence w,w
+  
+  li a2, sv32(asid=0, ppn=1)
+  csrw satp, a2
+  
+  (* Store 42 to the VA mapped by the PTE *)
+  
+  li a3, 0x10000
+  li a4, 42
+  sw a4, 0(a3)
+}
+
+exists 0:scause=0 /\ *0x3000=42

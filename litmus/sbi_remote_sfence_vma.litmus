@@ -1,0 +1,39 @@
+RISCV sbi_remote_sfence_vma
+
+(* Test the shootdown process. *)
+(* The load in P1 should never return 0xdeadbeef *)
+
+{
+  uint32_t *0x2040 = pte32(ppn=3,d=1,a=1,g=0,u=1,x=0,w=1,r=1,v=1);
+  uint32_t *0x1000 = pte32(ppn=2,d=0,a=0,g=0,u=1,x=0,w=0,r=0,v=1);
+  uint32_t *0x3000 = 0xdeadbeef;
+}
+
+P0                                     | P1                               ;
+  (* In bare mode: migrate PA *)       | (* Enter Sv32 mode *)            ;
+  (*  0x3000 to PA 0x5000 *)           | li a0, 0x80000001                ;
+                                       | csrw satp, a0                    ;
+  (* zero out the PTE *)               |                                  ;
+  li a0, 0x2040                        | (* Store to and then load from *);
+  sw x0, 0(a0)                         | (* VA 0x10000 *)                 ;
+                                       | li a1, 0x10000                   ;
+  (* TLB shootdowns *)                 | li a2, 42                        ;
+  sfence.vma                           | sw a2, 0(a1)                     ;
+  sbi_remote_sfence_vma({P1})          | lw a3, 0(a1)                     ;
+                                       |                                  ;
+  (* Copy the data from 0x3000 *)      |                                  ;
+  (* to 0x5000 *)                      |                                  ;
+  li a1, 0x3000                         |                                 ;
+  lw a2, 0(a1)                           |                                ;
+  li a1, 0x5000                            |                              ;
+  sw a2, 0(a1)                               |                            ;
+                                               |                          ;
+  (* Ensure the copy is done before *)           |                        ;
+  (* the new PTE is set up *)                      |                      ;
+  fence w,w                                          |                    ;
+                                                      |                   ;
+  (* set up the new PTE *)                            |                   ;
+  li a4, pte32(ppn=5,d=1,a=1,g=0,u=1,x=0,w=1,r=1,v=1) |                   ;
+  sw a4, 0(a0)                                        |                   ;
+
+forall 1:a3=42 \/ not 1:scause=0

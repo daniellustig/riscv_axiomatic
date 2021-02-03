@@ -1,0 +1,17 @@
+RISCV PTE-update-ad-lrsc
+
+(* The SC should either fault or update the D bit.  If HW updates the D bit,
+ the SC is allowed to succeed, but might fail for other spurious reasons too *)
+
+{
+  *0x2040=pte32(ppn=3,d=0,a=1,g=0,u=1,x=0,w=1,r=1,v=1);
+  *0x1000=pte32(ppn=2,d=0,a=0,g=0,u=1,x=0,w=0,r=0,v=1);
+}
+
+P0;
+li a1, 0x10000;
+li a2, 42;
+lr.w a0, 0(a1);
+sc.w a3, a2, 0(a1);
+
+exists 0:a3=0 /\ 0:sepc=0 /\ 0:scause=0 /\ *0x3000=42

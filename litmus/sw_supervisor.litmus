@@ -1,0 +1,17 @@
+RISCV sw_supervisor
+
+(* If running in user mode, the store should fault, because the PTE is set up
+   with U=0. *)
+
+{
+  (* Set up the intial state of the page table *)
+  uint32_t *0x2040=pte32(ppn=3,d=1,a=1,g=0,u=0,x=0,w=1,r=1,v=1);
+  uint32_t *0x1000=pte32(ppn=2,d=0,a=0,g=0,u=0,x=0,w=0,r=0,v=1);
+}
+
+P0;
+li a1, 0x10000;
+li a2, 42;
+sw a2, 0(a1);
+
+exists 0:sepc=0 /\ 0:scause=0 /\ *0x3000=42

@@ -1,0 +1,20 @@
+RISCV sc_d_bit
+
+{
+  (* Set up the intial state of the page table *)
+  uint32_t *0x2040=pte32(ppn=3,d=0,a=1,g=0,u=1,x=0,w=1,r=1,v=1);
+  uint32_t *0x1000=pte32(ppn=2,d=0,a=0,g=0,u=1,x=0,w=0,r=0,v=1);
+  (* run with --satp=0x80000001 to use the page table created above *)
+}
+
+P0;
+(* Store 42 to the VA mapped by the PTE.  The SC should either fault or
+update the D bit.  If HW updates the D bit, the SC is allowed to succeed. *)
+li a1, 0x10000;
+li a2, 42;
+lr.w a0, 0(a1);
+sc.w a3, a2, 0(a1);
+
+(* Either the SC succeeds and writes 42 to PA 0x3000, or the SC fails,
+   but there should be no fault *)
+forall 0:scause=0 /\ 0:stval=0 /\ ((0:a3=0 /\ *0x3000=42) \/ not(0:a3=0))
