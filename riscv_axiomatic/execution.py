@@ -307,7 +307,7 @@ class Thread:
         if self._options.verbose == 1:
             # Print only the first line...some z3 expressions get too long to
             # print in any meaningful way
-            print(*[i.split("\n")[0] for i in s])
+            print(*[str(i).split("\n")[0] for i in s])
         elif self._options.verbose:
             print(*s)
 
@@ -317,6 +317,7 @@ class Thread:
         self._state_stack.append((self._pc, self._user_mode, self._condition))
         self._branch.append(branch)
         self._unroll_count += 1
+        self._debug(f"Push state; now on branch {self._branch}")
 
     def _pop_state(self):
         """Restore the state prior to a branch"""
@@ -325,6 +326,7 @@ class Thread:
         self._state_stack.pop()
         self._branch.pop()
         self._unroll_count -= 1
+        self._debug(f"Pop state; now on branch {self._branch}")
 
     def _operation_name(self, thread=None, branch=None, pc=None):
         """The RVWMO Op name for thread/branch/PC.
@@ -388,11 +390,11 @@ class Thread:
                     "# WARNING: invalid satp write may be ignored "
                     "or have unpredictable consequences!"
                 )
-            elif not true(valid):
-                print(
-                    "# WARNING: possibly-invalid satp write may be ignored "
-                    "or have unpredictable events!"
-                )
+            #elif not true(valid):
+            #    print(
+            #        "# WARNING: possibly-invalid satp write may be ignored "
+            #        "or have unpredictable events!"
+            #    )
 
         elif reg in [
             canonical_register("sepc"),
@@ -522,8 +524,24 @@ class Thread:
         self._deps[dst] = dep.relation()
         self._debug(f"Dep[{dst}] = {dep.relation()}")
 
+    def _merge_fault_conditions(self, condition, a, b):
+        d = {}
+        for k in set().union(a.keys()).union(b.keys()):
+            d[k] = [
+                z3.And(condition, z3.Or(a.get(k, []))),
+                z3.And(z3.Not(condition, z3.Or(b.get(k, []))))
+            ]
+        return d
+
     def _translate(self, name, meta, va, read, write, execute, width):
         """Translate `va` into a physical address, according to satp.mode"""
+
+        fault_bare = {
+            SCauseCodes.store_amo_access:
+                [z3.And(write, truncates(va, self._options.physical_address_bits))],
+            SCauseCodes.load_access:
+                [z3.And(z3.Not(write), truncates(va, self._options.physical_address_bits))],
+        }
 
         satp = self._get_register("satp")
         if z3.is_const(simplify(satp)):
@@ -549,10 +567,7 @@ class Thread:
             asid = z3.Extract(30, 22, satp)
             ppn = z3.Extract(21, 0, satp)
 
-            pa_bare, fault_bare = (
-                resize(va, self._options.physical_address_bits),
-                truncates(va, self._options.physical_address_bits),
-            )
+            pa_bare = resize(va, self._options.physical_address_bits)
 
             pa_sv32, fault_sv32 = virtual.sv32(
                 self._options, asid, ppn
@@ -567,11 +582,12 @@ class Thread:
                 write=write,
                 execute=execute,
                 user=self._user_mode,
+                width=width,
             )
 
             pa, faults = (
                 z3.If(mode == 1, pa_sv32, pa_bare),
-                z3.If(mode == 1, fault_sv32, fault_bare),
+                self._merge_fault_conditions(mode == 1, fault_sv32, fault_bare),
             )
 
         elif self._options.xlen == 64:
@@ -579,10 +595,7 @@ class Thread:
             asid = z3.Extract(59, 44, satp)
             ppn = z3.Extract(43, 0, satp)
 
-            pa_bare, fault_bare = (
-                resize(va, self._options.physical_address_bits),
-                truncates(va, self._options.physical_address_bits),
-            )
+            pa_bare = resize(va, self._options.physical_address_bits)
 
             pa_sv39, fault_sv39 = virtual.sv39(
                 self._options, asid, ppn
@@ -597,6 +610,7 @@ class Thread:
                 write=write,
                 execute=execute,
                 user=self._user_mode,
+                width=width,
             )
 
             pa_sv48, fault_sv48 = virtual.sv48(
@@ -612,14 +626,15 @@ class Thread:
                 write=write,
                 execute=execute,
                 user=self._user_mode,
+                width=width,
             )
 
             pa, faults = (
                 z3.If(mode == 8, pa_sv39, z3.If(mode == 9, pa_sv48, pa_bare)),
-                z3.If(
-                    mode == 8,
-                    fault_sv39,
-                    z3.If(mode == 9, fault_sv48, fault_base),
+                self._merge_fault_conditions(
+                    mode == 8, fault_sv39,
+                    self._merge_fault_conditions(
+                        mode == 9, fault_sv48, fault_bare),
                 ),
             )
 

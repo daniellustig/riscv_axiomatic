@@ -199,7 +199,7 @@ def print_verbose_solution(
     print_order = topsort(
         "print_order",
         solution["Op"],
-        solution["^(po + display_order + po.^~translation_order)"],
+        solution["^(po + implicit_program_order + po.^~translation_order)"],
     )
 
     for k, v in outcome._variables.items():

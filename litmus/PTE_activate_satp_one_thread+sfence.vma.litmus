@@ -1,0 +1,28 @@
+RISCV PTE_activate_satp_one_thread.litmus
+
+(* Setting satp after writing PTEs to memory is not by itself enough
+   to ensure that the PTEs are visible to later accesses in program order.
+   An SFENCE.VMA is still needed *)
+
+{}
+
+P0 {
+  li a0, 0x1000
+  li a1, pte32(ppn=2,d=0,a=0,g=0,u=1,x=0,w=0,r=0,v=1)
+  sw a1, 0(a0)
+
+  li a0, 0x2040
+  li a1, pte32(ppn=3,d=1,a=1,g=0,u=1,x=0,w=1,r=1,v=1)
+  sw a1, 0(a0)
+
+  sfence.vma
+
+  li a0, sv32(asid=0, ppn=1)
+  csrw satp, a0
+
+  li a0, 0x10000
+  li a1, 42
+  sw a1, 0(a0)
+}
+
+~exists not 0:sepc=0

@@ -155,11 +155,8 @@ class RVWMOBuilder:
         in reality be ordered via IPIs).
         """
 
-        self.display_order = RelationBuilder()
-        """The order in which Ops should be displayed.
-
-        Not used for building relations with any functional meaning.
-        """
+        self.implicit_program_order = RelationBuilder()
+        """Like program order, but includes ImplicitOps as well."""
 
         # Other dictionaries tracking per-Op information
 
@@ -638,7 +635,7 @@ class RVWMOBuilder:
         m["same_satp_asid"] = same_satp_asid.relation()
 
         # same_satp_asid is implicitly SFenceVMA <: ... :> ImplicitOp
-        m["sfence_po"] = m["(po.^~translation_order) & loc & same_satp_asid"]
+        m["sfence_po"] = m["implicit_program_order & loc & same_satp_asid"]
 
         return z3.And(
             # If an implicit read is po-after an sfence.vma with a matching
@@ -769,8 +766,10 @@ class LitmusTestBuilder(RVWMOBuilder):
         self._po_prev = {}
         "For each software thread, the preceding operations in program order"
 
-        self._display_order_prev = {}
-        "For each software thread, the preceding operations in display order"
+        self._implicit_program_order_prev = {}
+        """For each software thread, the preceding operations in implicit PO.
+
+        This includes ImplicitOps into program order."""
 
     def thread(self, thread_name, hart_name):
         self.Hart.update((hart_name,), True)
@@ -793,11 +792,11 @@ class LitmusTestBuilder(RVWMOBuilder):
         self.meta[op_name] = meta
         self.label[op_name] = label
 
-        # Update display order
-        for k in self._display_order_prev.setdefault(thread_name, []):
+        # Update implicit program order
+        for k in self._implicit_program_order_prev.setdefault(thread_name, []):
             v = self.condition(k)
-            self.display_order.update((k, op_name), z3.And(v, condition))
-        self._display_order_prev[thread_name].append(op_name)
+            self.implicit_program_order.update((k, op_name), z3.And(v, condition))
+        self._implicit_program_order_prev[thread_name].append(op_name)
 
         # Implicit accesses are not entered into program order
         if implicit:
