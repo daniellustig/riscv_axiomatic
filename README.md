@@ -59,7 +59,7 @@ Condition forall 0:scause=0 /\ 0:stval=0 /\ ((0:a3=0 /\ *0x3000=42) \/ not(0:a3=
 Hash=0
 Observation sc_d_bit Always 2 0
 
-$ python3 -m riscv_axiomatic -i litmus/sc_d_bit.litmus --physical_address_bits=32 --satp=0x80000001 --no-hardware-a-d-bit-update
+$ python3 -m riscv_axiomatic -i litmus/sc_d_bit.litmus --physical-address-bits=32 --satp=0x80000001 --no-hardware-a-d-bit-update
 Test sc_d_bit Required
 States 1
 *0x3000=0x0; 0:scause=0xf; 0:stval=0x10000; 0:x13=0x0;
