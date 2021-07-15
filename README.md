@@ -165,7 +165,7 @@ of the RISC-V Unprivileged Spec.
    is an implicit access to the address-translation data structures performed
    on behalf of `b`, and there is an SFENCE.VMA instruction with ASID (if
    applicable) and address (if applicable) matching `i` between `a` and `b` in
-   program order, then `a` precedes `b` in the global memory order.
+   program order, then `a` precedes `i` in the global memory order.
 2. If `i` is an implicit access to the address-translation data structures
    performed on behalf of memory operation `b`, then `i` precedes `b` in the
    global memory order
